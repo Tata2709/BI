@@ -86,7 +86,9 @@ public class LeadController {
 	private final String INVALID_LEADS_INPUT = "Invalid leads input. Please, enter leads with space inbetween";
 	private final String EXTRACTION_SUCCESSFUL = "Extraction successfully completed";
 	private final String EXTRACTION_FAILED = "Extraction failed. Import file not valid";
+	
 	private final String encoding = "UTF-8";
+	private LeadExtractionMode leadExtractionMode;
 	JTabbedPane tabbedPane;
 
 	public LeadController(JFrame mainFrame, LeadPanel lp, JTabbedPane pane) {
@@ -308,9 +310,7 @@ public class LeadController {
 
 		String extractMode = extractRadioButtonGroup.getSelection()
 				.getActionCommand();
-		extractButton.setEnabled(false);
 		ArrayList<Component> componentsToDisable = collectComponents();
-		
 
 		if (outputFileChooserXML.showSaveDialog(extractPanel) == JFileChooser.APPROVE_OPTION) {
 
@@ -329,48 +329,35 @@ public class LeadController {
 
 			// prepare extract from XML to write into file
 			if (extractMode == "extractLeadsByIDs") {
-				String leadIDs = leadInputField.getText().trim();
-				if (leadIDs.length() == 0) {
+				String leads = leadInputField.getText().trim();
+				ArrayList <String> leadIDs = leadsToFind(leads);
+				if (leads.length() == 0) {
 					LeadExtractionTask let = new LeadExtractionTask(
 							importXMLfile, outputFile, extractionResultLabel,
-							exportFileLabel, browseXMLbutton, componentsToDisable);
+							exportFileLabel, browseXMLbutton,
+							componentsToDisable, leadIDs,
+							leadExtractionMode.EXTRACTALL);
 					let.execute();
+				} else {
+					if (validateInputLeads(leads)) {
+						
+						LeadExtractionTask let = new LeadExtractionTask(
+								importXMLfile, outputFile,
+								extractionResultLabel, exportFileLabel,
+								browseXMLbutton, componentsToDisable, leadIDs,
+								leadExtractionMode.EXTRACTBYIDS);
+						let.execute();
+					} else {
+
+						JOptionPane.showMessageDialog(mainFrame,
+								INVALID_LEADS_INPUT);
+						return;
+					}
 				}
 			}
-			// extractAllLeads(importXMLfile, outputFile);
-			// } else {
-			//
-			// // make sure the input is not longer than 300 symbols
-			// String leadInput = truncateFieldInput(leadIDs.trim());
-			//
-			// // check whether the leads entered in the input field are
-			// // valid
-			// boolean validInput = validateInputLeads(leadInput);
-			// if (!validInput) {
-			// JOptionPane.showMessageDialog(mainFrame,
-			// INVALID_LEADS_INPUT);
-			// return;
-			// }
-			//
-			// }
-			// } else {
-			//
-			// }
-			// if (extractionOK) {
-			// extractionResultLabel.setText(EXTRACTION_SUCCESSFUL);
-			// exportFileLabel.setText(outputFile + ".xml");
-			// } else {
-			// extractionResultLabel.setText(EXTRACTION_FAILED);
-			// }
-			// extractionResultLabel.setVisible(true);
-
-			// enable all GUI elements after finishing the extraction
-			// Runnable enableWindow = new DisableWindowTask(tabbedPane, true,
-			// components);
-			// SwingUtilities.invokeLater(enableWindow);
-			
-			
 		}
+	
+
 	}
 
 	// make sure the input consists of numeric lead IDs separated by space
@@ -412,5 +399,44 @@ public class LeadController {
 		components.add(extractButton);
 
 		return components;
+	}
+	
+	private ArrayList<String> leadsToFind(String input) {
+		ArrayList<String> leads = new ArrayList<String>();
+		int length = input.length();
+		int counter = 0;
+		
+		if(input.length() == 0)
+			return leads;
+		
+		while (counter < length) {
+			String leadId = "";
+			boolean leadIdStartFound = false;
+
+			while ((!leadIdStartFound) && (counter < length)) {
+				Character digit = input.charAt(counter);
+				if (Character.isDigit(digit)) {
+					leadIdStartFound = true;
+					leadId += digit;
+				}
+				counter++;
+			}
+
+			boolean leadIdEndFound = false;
+			while ((!leadIdEndFound) && (counter < length)) {
+				Character digit = input.charAt(counter);
+				if (Character.isWhitespace(digit)) {
+					leadIdEndFound = true;
+				} else {
+					leadId += digit;
+					counter++;
+				}
+			}
+
+			leads.add(leadId);
+
+		}
+
+		return leads;
 	}
 }
