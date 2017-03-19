@@ -87,11 +87,8 @@ public class ErrorLogDialog extends JDialog {
 	            }
 			});
 		
-		saveLogButton.addActionListener(new ActionListener(){
-			public void actionPerformed(ActionEvent e){
-				controller.saveErrorLog();
-			}
-		});
+		SaveErrorLogActionListener selListener = new SaveErrorLogActionListener(controller);
+		saveLogButton.addActionListener(selListener);
 		
 	}
 	public JFileChooser getFileChooserTXT(){

@@ -149,21 +149,8 @@ public class SelectionPanel extends JPanel {
 		});
 		
 		for (JButton button : factsButtons) {
-			button.addActionListener(new ActionListener() {
-
-				@Override
-				public void actionPerformed(ActionEvent e) {
-					String fact = convertButtonToFact(button.getText());
-					if (button.getForeground().equals(new Color(93, 93, 95))) {
-						button.setForeground(Color.RED);
-						addSelectedFact(true, fact);
-					} else {
-						button.setForeground(new Color(93, 93, 95));
-						addSelectedFact(false, fact);
-					}
-
-				}
-			});
+			FactsButtonActionListener fListener = new FactsButtonActionListener(button, this);
+			button.addActionListener(fListener);
 		}
 	}
 	private void addSelectedFact(boolean add, String fact) {
@@ -274,5 +261,9 @@ public class SelectionPanel extends JPanel {
 		c.addAll(factsButtons);
 		c.add(leadInputField);
 		return c;
+	}
+
+	public ArrayList<JButton> getFactsButtons() {
+		return factsButtons;
 	}
 }

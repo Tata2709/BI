@@ -39,14 +39,18 @@ public class LeadExtractionTask extends SwingWorker<Integer, String> {
 	private final String EXTRACTION_FAILURE_MESSAGE = "Extraction not successful. \nCheck if the imported XML file is valid";
 	private final String EXTRACTION_SUCCESSFULLY_COMPLETED_MESSAGE = " leads successfully extracted: ";
 	private final String EXTRACTION_INTERRUPTED_MESSAGE = "Extraction interrupted. \nCheck if the imported XML file is valid";
+	private final String NO_MATCHING_LEADS = "No matching leads were found in the input file";
+	private final String NO_LEADS_FOUND = "No leads were found in the input file";
 	private final String LEAD = "Lead";
 	private ArrayList<Component> componentsToDisable;
 	private LeadExtractionMode leadExtractionMode;
-	private ArrayList <String> leadIDs;
+	private ArrayList<String> leadIDs;
+	boolean leadsFound = false;
+	private final String LEADID = "LEAD_Lead_ID";
 
 	LeadExtractionTask(String input, String output, JLabel extractionResult,
 			JLabel exportFile, JButton browseB,
-			ArrayList<Component> components, ArrayList <String> leads,
+			ArrayList<Component> components, ArrayList<String> leads,
 			LeadExtractionMode exMode) {
 		outputFile = output;
 		inputFile = input;
@@ -67,12 +71,12 @@ public class LeadExtractionTask extends SwingWorker<Integer, String> {
 			// initialize the stream reader
 			InputStream inputStream = new FileInputStream(inputFile);
 			XMLEventReader reader = XMLInputFactory.newInstance()
-					.createXMLEventReader(inputStream);
+					.createXMLEventReader(inputStream, encoding);
 
 			// initialize the stream writer
 			OutputStream outputStream = new FileOutputStream(outputFile);
 			XMLEventWriter writer = XMLOutputFactory.newInstance()
-					.createXMLEventWriter(outputStream);
+					.createXMLEventWriter(outputStream, encoding);
 
 			// initialize event factory for creating instances of XML events
 			XMLEventFactory eventFactory = XMLEventFactory.newInstance();
@@ -97,6 +101,7 @@ public class LeadExtractionTask extends SwingWorker<Integer, String> {
 
 			return result;
 		} catch (FileNotFoundException e) {
+			e.printStackTrace();
 			return FAILURE;
 		}
 
@@ -106,7 +111,10 @@ public class LeadExtractionTask extends SwingWorker<Integer, String> {
 			XMLEventFactory eventFactory) {
 		String previousEndTagName = "";
 		leadCounter = 0;
+
 		try {
+			leadsFound = false;
+
 			while (reader.hasNext()) {
 				// inspect each <Lead> element
 				XMLEvent event = (XMLEvent) reader.next();
@@ -124,9 +132,10 @@ public class LeadExtractionTask extends SwingWorker<Integer, String> {
 
 					// option 1 - increase the lead counter
 					if (startTagName.equals(LEAD)) {
+						leadsFound = true;
 						previousEndTagName = "";
 						leadCounter++;
-						publish(Integer.toString(leadCounter));
+						publish("Extracting lead number " + leadCounter);
 					}
 
 					// option 3 - finish export
@@ -175,11 +184,12 @@ public class LeadExtractionTask extends SwingWorker<Integer, String> {
 
 			}
 		} catch (XMLStreamException e) {
+			e.printStackTrace();
 			return FAILURE;
 
 		} catch (java.util.NoSuchElementException e) {
+			e.printStackTrace();
 			return FAILURE;
-
 		}
 
 		return SUCCESS;
@@ -189,11 +199,15 @@ public class LeadExtractionTask extends SwingWorker<Integer, String> {
 	private int extractLeadsByIDs(XMLEventReader reader, XMLEventWriter writer,
 			XMLEventFactory eventFactory) {
 		String previousEndTagName = "";
+		boolean leadIDElement = false;
 		leadCounter = 0;
+		leadsFound = false;
+		boolean insideLead = false;
 		ArrayList<XMLEvent> leadElements = new ArrayList<XMLEvent>();
 		boolean leadMatches = false;
-
+		String matchedLead = null;
 		try {
+			publish("Searching...");
 			while (reader.hasNext()) {
 				// inspect each <Lead> element
 				XMLEvent event = (XMLEvent) reader.next();
@@ -209,13 +223,6 @@ public class LeadExtractionTask extends SwingWorker<Integer, String> {
 					String startTagName = event.asStartElement().getName()
 							.getLocalPart().trim();
 
-					// option 1 - increase the lead counter
-					if (startTagName.equals(LEAD)) {
-						previousEndTagName = "";
-						// leadCounter++;
-						// publish(Integer.toString(leadCounter));
-					}
-
 					// option 3 - finish export
 					if (previousEndTagName.equals(LEAD)
 							&& !startTagName.equals(LEAD)) {
@@ -224,14 +231,27 @@ public class LeadExtractionTask extends SwingWorker<Integer, String> {
 						reader.close();
 						return SUCCESS;
 					}
+
+					// option 1 - reset previousEndTag to find the end of this
+					// lead
+					if (startTagName.equals(LEAD)) {
+						leadsFound = true;
+						previousEndTagName = "";
+						insideLead = true;
+					} else if (startTagName.equals(LEADID)) {
+						leadIDElement = true;
+					}
+
 					// option 1 and 2 - write it to the output
 					StartElement startTag = eventFactory.createStartElement("",
 							"", startTagName);
 
 					if (leadMatches) {
 						writer.add(startTag);
-					}else{
-						leadElements.add(startTag);
+					} else {
+						if (insideLead) {
+							leadElements.add(startTag);
+						}
 					}
 					break;
 				}
@@ -244,17 +264,28 @@ public class LeadExtractionTask extends SwingWorker<Integer, String> {
 					EndElement endTag = eventFactory.createEndElement("", "",
 							endTagName);
 
-
 					if (leadMatches) {
 						writer.add(endTag);
-					}else{
-						leadElements.add(endTag);
+					} else {
+						if (insideLead) {
+							leadElements.add(endTag);
+						}
 					}
 
 					previousEndTagName = endTagName;
-					
+
 					if (endTagName.equals(LEAD)) {
+						if (leadMatches)
+							leadIDs.remove(matchedLead);
+						if (leadIDs.size() == 0) {
+							writer.flush();
+							writer.close();
+							reader.close();
+							return SUCCESS;
+						}
+						leadElements.clear();
 						leadMatches = false;
+						matchedLead = null;
 					}
 
 					break;
@@ -264,22 +295,31 @@ public class LeadExtractionTask extends SwingWorker<Integer, String> {
 				case (XMLStreamConstants.CHARACTERS): {
 
 					String content = event.asCharacters().getData().trim();
-					
-					for(String leadID : leadIDs){
-						if(leadID.equals(content))
-							leadMatches = true;
+					if (leadIDElement) {
+						for (String leadID : leadIDs) {
+							if (leadID.equals(content)) {
+								leadMatches = true;
+								matchedLead = leadID;
+								for (XMLEvent element : leadElements) {
+									writer.add(element);
+								}
+								leadCounter++;
+								publish("Extracted " + leadCounter
+										+ " leads. Searching...");
+							}
+						}
+						leadIDElement = false;
 					}
-					
 					Characters contentElement = eventFactory
 							.createCharacters(content);
 
-					
 					if (leadMatches) {
-						for(XMLEvent element : leadElements)
-							writer.add(element);
+
 						writer.add(contentElement);
-					}else{
-						leadElements.add(contentElement);
+					} else {
+						if (insideLead) {
+							leadElements.add(contentElement);
+						}
 					}
 
 					break;
@@ -291,10 +331,10 @@ public class LeadExtractionTask extends SwingWorker<Integer, String> {
 			return FAILURE;
 
 		} catch (java.util.NoSuchElementException e) {
+			System.out.println("failure");
 			return FAILURE;
 
 		}
-
 		return SUCCESS;
 
 	}
@@ -304,9 +344,11 @@ public class LeadExtractionTask extends SwingWorker<Integer, String> {
 		for (Component component : componentsToDisable) {
 			component.setEnabled(false);
 		}
-		extractionResultLabel.setVisible(true);
-		for (String number : chunks) {
-			extractionResultLabel.setText("Extracting lead number: " + number);
+
+		for (String message : chunks) {
+			extractionResultLabel.setText(message);
+			// extractionResultLabel.setText("Extracting lead number: " +
+			// number);
 			extractionResultLabel.setVisible(true);
 		}
 	}
@@ -323,17 +365,24 @@ public class LeadExtractionTask extends SwingWorker<Integer, String> {
 				extractionResultLabel.setText(EXTRACTION_FAILURE_MESSAGE);
 				extractionResultLabel.setVisible(true);
 				exportFileLabel.setVisible(false);
-			}
-			if (result == SUCCESS) {
-
-				extractionResultLabel.setText(leadCounter
-						+ EXTRACTION_SUCCESSFULLY_COMPLETED_MESSAGE);
+			} else if (result == SUCCESS) {
+				if (!leadsFound) {
+					extractionResultLabel.setText(NO_LEADS_FOUND);
+				} else {
+					if (leadCounter == 0) {
+						extractionResultLabel.setText(NO_MATCHING_LEADS);
+					} else {
+						extractionResultLabel.setText(leadCounter
+								+ EXTRACTION_SUCCESSFULLY_COMPLETED_MESSAGE);
+						exportFileLabel.setText(outputFile);
+						exportFileLabel.setVisible(true);
+					}
+				}
 				extractionResultLabel.setVisible(true);
-				exportFileLabel.setText(outputFile);
-				exportFileLabel.setVisible(true);
 
 			}
 		} catch (InterruptedException | ExecutionException e) {
+			e.printStackTrace();
 			extractionResultLabel.setText(EXTRACTION_INTERRUPTED_MESSAGE);
 			extractionResultLabel.setVisible(true);
 			exportFileLabel.setVisible(false);

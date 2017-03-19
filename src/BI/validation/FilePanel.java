@@ -77,7 +77,7 @@ public class FilePanel extends JPanel {
 		layoutComponents();
 	}
 
-	public void initializeGUIelements() {
+	private void initializeGUIelements() {
 
 		setBackground(new Color(245, 245, 245));
 

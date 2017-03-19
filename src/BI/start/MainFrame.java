@@ -2,6 +2,7 @@ package BI.start;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Component;
 import java.awt.Dimension;
 
 import javax.swing.ImageIcon;
@@ -10,6 +11,8 @@ import javax.swing.JPanel;
 import javax.swing.JTabbedPane;
 import javax.swing.UIManager;
 
+import BI.data_count.DataCountController;
+import BI.data_count.DataCountPanel;
 import BI.facts.FactsController;
 import BI.facts.FactsPanel;
 import BI.lead.LeadController;
@@ -20,7 +23,7 @@ import BI.validation.ValidationPanel;
 public class MainFrame extends JFrame {
 
 	private ValidationPanel validationPanel;
-	private ValidationController validationController;
+	private DataCountPanel dataCountPanel;
 	private JTabbedPane tabPane;
 	private FactsPanel factsPanel;
 	private FactsController factsController;
@@ -52,6 +55,13 @@ public class MainFrame extends JFrame {
 		validationController.setValidationPanel(validationPanel);
 		tabPane.addTab("XML validation", validationPanel);
 
+		// data count panel
+		DataCountController dataCountController = new DataCountController(
+				this, tabPane);
+		dataCountPanel = new DataCountPanel(dataCountController);
+		dataCountController.setDataCountPanel(dataCountPanel);
+		tabPane.addTab("Data Count", dataCountPanel);
+
 		// Facts panel
 		factsController = new FactsController(this, tabPane);
 		factsPanel = new FactsPanel(factsController);
@@ -60,7 +70,8 @@ public class MainFrame extends JFrame {
 
 		// Lead panel
 		leadPanel = new LeadPanel();
-		LeadController leadController = new LeadController(this, leadPanel, tabPane);
+		LeadController leadController = new LeadController(this, leadPanel,
+				tabPane);
 		tabPane.addTab("Leads", leadPanel);
 
 		tabPane.addTab("Persons", new JPanel());
@@ -72,8 +83,13 @@ public class MainFrame extends JFrame {
 		tabPane.addTab("Coverage", new JPanel());
 
 		tabPane.setEnabledAt(1, true);
-		tabPane.setEnabledAt(2, true);
+		tabPane.setEnabledAt(2, false);
 		tabPane.setEnabledAt(3, false);
+		tabPane.setEnabledAt(4, false);
+		tabPane.setEnabledAt(5, false);
+		tabPane.setEnabledAt(6, false);
+		tabPane.setEnabledAt(7, false);
+		tabPane.setEnabledAt(8, false);
 
 		// closing operation
 		setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
